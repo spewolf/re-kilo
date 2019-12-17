@@ -51,22 +51,35 @@ void enableRawMode() {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
+char editorReadKey() {
+	int nread;
+	char c;
+	while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+		if (nread == -1 && errno != EAGAIN) die("read");
+	}
+	return c;
+}
+
+/*** input ***/
+
+void editorProcessKeypress() {
+	char c = editorReadKey();
+
+	switch (c) {
+		case CTRL_KEY('q'):
+			exit(0);
+			break;
+	}
+}
+
 /*** init ***/
 
 int main() {
 	enableRawMode();
 
-	// characters are read and displayed
+	// runtime loop
 	while(1) {
-		char c;
-		if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
-		if (iscntrl(c)) {
-			printf("%d\r\n", c);
-		} else {
-			printf("%d ('%c')\r\n", c, c);
-		}
-		// exit on q
-	       	if (c == CTRL_KEY('q')) break;
+		editorProcessKeypress();
 	}
 	return 0; 
 }
