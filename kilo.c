@@ -6,6 +6,11 @@
 #include <termios.h>
 #include <unistd.h>
 
+/*** defines ***/
+
+// Masks first 5 bits of character to convert char to C-char
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 /*** data ***/
 
 struct termios orig_termios;
@@ -61,7 +66,7 @@ int main() {
 			printf("%d ('%c')\r\n", c, c);
 		}
 		// exit on q
-	       	if (c == 'q') break;
+	       	if (c == CTRL_KEY('q')) break;
 	}
 	return 0; 
 }
