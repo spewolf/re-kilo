@@ -19,6 +19,9 @@ struct termios orig_termios;
 
 // perror will print given string and then detailed discription of error based on global errno
 void die (const char *err) {
+	// Clear Screen
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+	write(STDOUT_FILENO, "\x1b[H", 3);
 	perror(err);
 	exit(1);
 }
@@ -51,6 +54,7 @@ void enableRawMode() {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
+// read character from terminal input
 char editorReadKey() {
 	int nread;
 	char c;
@@ -60,6 +64,13 @@ char editorReadKey() {
 	return c;
 }
 
+/*** output ***/
+
+void editorRefreshScreen() {
+	write(STDOUT_FILENO, "\x1b[2J", 4);
+	write(STDOUT_FILENO, "\x1b[H", 3);
+}
+
 /*** input ***/
 
 void editorProcessKeypress() {
@@ -67,6 +78,9 @@ void editorProcessKeypress() {
 
 	switch (c) {
 		case CTRL_KEY('q'):
+			// Clear Screen
+			write(STDOUT_FILENO, "\x1b[2J", 4);
+			write(STDOUT_FILENO, "\x1b[H", 3);
 			exit(0);
 			break;
 	}
@@ -79,6 +93,7 @@ int main() {
 
 	// runtime loop
 	while(1) {
+		editorRefreshScreen();
 		editorProcessKeypress();
 	}
 	return 0; 
