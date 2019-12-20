@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -107,28 +108,66 @@ int getWindowSize(int *rows, int *cols) {
 		return 0;
 	}
 }
+/*** append ***/
+
+struct appendbuf {
+	char *b;
+	int len;
+};
+
+#define ABUF_INIT {NULL, 0}
+
+// appends a string to the buffer
+void appendToBuffer(struct appendbuf *ab, const char *s, int len) {
+	char *new = realloc(ab->b, ab->len + len);
+
+	if (new == NULL) return;
+	// copy string to memory after ab
+	memcpy(&new[ab->len], s, len);
+	// assign new pointer to struct in case of location change
+	ab->b = new;
+	// increase length of buffer
+	ab->len += len;
+}
+
+
+// deallocate buffer
+void freeAppendBuffer(struct appendbuf *ab) {
+	free(ab->b);
+}
 
 /*** output ***/
 
-void editorDrawRows() {
+void editorDrawRows(struct appendbuf *ab) {
 	int y;
 	// draw 24 tildes
 	for (y = 0; y < config.screenrows; y++) {
-		write(STDOUT_FILENO, "~", 1);
+		appendToBuffer(ab, "~", 1);
 
+		appendToBuffer(ab, "\x1b[K", 3);
 		if (y < config.screenrows -1) {
-			write(STDOUT_FILENO, "\r\n", 2);
+			appendToBuffer(ab, "\r\n", 2);
 		}	
 	}
 }
 
 void editorRefreshScreen() {
-	write(STDOUT_FILENO, "\x1b[2J", 4);
-	write(STDOUT_FILENO, "\x1b[H", 3);
+	struct appendbuf ab = ABUF_INIT;
 
-	editorDrawRows();
+	// hide cursor and move cursor top left
+	appendToBuffer(&ab, "\x1b[?25l", 6);
+	appendToBuffer(&ab, "\x1b[H", 3);
 
-	write(STDOUT_FILENO, "\x1b[H", 3);
+	// draw
+	editorDrawRows(&ab);
+
+	// move cursor top left and show cursor
+	appendToBuffer(&ab, "\x1b[H", 3);
+	appendToBuffer(&ab, "\x1b[?25h", 6);
+
+	// write and erase buffer
+	write(STDOUT_FILENO, ab.b, ab.len);
+	freeAppendBuffer(&ab);
 }
 
 /*** input ***/
