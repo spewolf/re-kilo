@@ -43,14 +43,14 @@ void enableRawMode() {
 	if (tcgetattr(STDIN_FILENO, &config.orig_termios) == -1) die("tcgetattr");
 	// atexit calls function upon program exit
 	atexit(disableRawMode);
-	
+
 	// flags are set via bitwise operations
 	struct termios raw = config.orig_termios;
 	raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
 	raw.c_oflag &= ~(OPOST);
 	raw.c_cflag |= (CS8);
 	raw.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
-	
+
 	// Minimum bytes to return from read()
 	raw.c_cc[VMIN] = 0;
 	// Time to wait till returning from read() in 1/10ths of a second
@@ -70,11 +70,37 @@ char editorReadKey() {
 	return c;
 }
 
+int getCursorPosition(int *rows, int *cols) {
+	char buf[32];
+	unsigned int i = 0;
+
+	// ask for n (device status report) 6 (cursor position)
+	if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) return -1;
+
+	//read result into buffer
+	while (i < sizeof(buf) - 1) {
+		if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
+		if(buf[i] == 'R') break;
+		i++;
+	}
+	// terminate string
+	buf[i] = '\0';
+
+	// parse pointer location
+	if (buf[0] != '\x1b' || buf[1] != '[') return -1;
+	if (sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
+
+	return 0;
+}
+
 int getWindowSize(int *rows, int *cols) {
 	struct winsize ws;
 
+	// read window size
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-		return -1;
+		// given a failure, move pointer to bottom right and read position
+		if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) return -1;
+		return getCursorPosition(rows,cols);
 	} else {
 		*cols = ws.ws_col;
 		*rows = ws.ws_row;
