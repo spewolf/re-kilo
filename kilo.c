@@ -10,6 +10,8 @@
 
 /*** defines ***/
 
+#define KILO_VERSION "0.0.0"
+
 // Masks first 5 bits of character to convert char to C-char
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -142,7 +144,21 @@ void editorDrawRows(struct appendbuf *ab) {
 	int y;
 	// draw 24 tildes
 	for (y = 0; y < config.screenrows; y++) {
-		appendToBuffer(ab, "~", 1);
+		if (y == config.screenrows / 3) {
+			char welcome[80];
+			int welcomelen = snprintf(welcome, sizeof(welcome),
+				"Kilo editor -- version %s", KILO_VERSION);
+			if (welcomelen > config.screencols) welcomelen = config.screencols;
+			int padding = (config.screencols - welcomelen) / 2;
+			if (padding) {
+				appendToBuffer(ab, "~", 1);
+				padding--;
+			}
+			while (padding --) appendToBuffer(ab, " ", 1);
+			appendToBuffer(ab, welcome, welcomelen);
+		} else {
+			appendToBuffer(ab, "~", 1);
+		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
 		if (y < config.screenrows -1) {
