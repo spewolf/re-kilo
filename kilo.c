@@ -17,6 +17,7 @@
 
 /*** data ***/
 struct editorConfig {
+	int cx, cy;
 	struct termios orig_termios;
 	int screenrows;
 	int screencols;
@@ -176,9 +177,13 @@ void editorRefreshScreen() {
 
 	// draw
 	editorDrawRows(&ab);
+	
+	// move cursor to current position
+	char buf[32];
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", config.cy + 1, config.cx + 1);
+	appendToBuffer(&ab, buf, strlen(buf));
 
-	// move cursor top left and show cursor
-	appendToBuffer(&ab, "\x1b[H", 3);
+	// show cursor
 	appendToBuffer(&ab, "\x1b[?25h", 6);
 
 	// write and erase buffer
@@ -187,6 +192,23 @@ void editorRefreshScreen() {
 }
 
 /*** input ***/
+
+void editorMoveCursor(char key) {
+	switch (key) {
+		case 'a':
+			config.cx--;
+			break;
+		case 'd':
+			config.cx++;
+			break;
+		case 'w':
+			config.cy--;
+			break;
+		case 's':
+			config.cy++;
+			break;
+	}
+}
 
 void editorProcessKeypress() {
 	char c = editorReadKey();
@@ -198,12 +220,21 @@ void editorProcessKeypress() {
 			write(STDOUT_FILENO, "\x1b[H", 3);
 			exit(0);
 			break;
+		case 'w':
+		case 'a':
+		case 's':
+		case 'd':
+			editorMoveCursor(c);
+			break;
 	}
 }
 
 /*** init ***/
 
 void initEditor() {
+	config.cx = 0;
+	config.cy = 0;
+
 	if (getWindowSize(&config.screenrows, &config.screencols) == -1) 
 		die("getWindowSize");
 }
