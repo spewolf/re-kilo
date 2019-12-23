@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -28,11 +29,19 @@ enum editorKey {
 };
 
 /*** data ***/
+
+typedef struct erow {
+	int size;
+	char *chars;
+} erow;
+
 struct editorConfig {
 	int cx, cy;
 	struct termios orig_termios;
 	int screenrows;
 	int screencols;
+	int numrows;
+	erow row;
 };
 
 struct editorConfig config;
@@ -164,6 +173,20 @@ int getWindowSize(int *rows, int *cols) {
 		return 0;
 	}
 }
+
+/*** file I/O ***/
+
+void editorOpen() {
+	char *line = "Hello, world!";
+	ssize_t linelen = 13;
+
+	config.row.size = linelen;
+	config.row.chars = malloc(linelen+1);
+	memcpy(config.row.chars, line, linelen);
+	config.row.chars[linelen] = '\0';
+	config.numrows = 1;
+}
+
 /*** append ***/
 
 struct appendbuf {
@@ -198,20 +221,29 @@ void editorDrawRows(struct appendbuf *ab) {
 	int y;
 	// draw 24 tildes
 	for (y = 0; y < config.screenrows; y++) {
-		if (y == config.screenrows / 3) {
-			char welcome[80];
-			int welcomelen = snprintf(welcome, sizeof(welcome),
-				"Kilo editor -- version %s", KILO_VERSION);
-			if (welcomelen > config.screencols) welcomelen = config.screencols;
-			int padding = (config.screencols - welcomelen) / 2;
-			if (padding) {
+
+		// draw version screen and tildes below text
+		if(y >= config.numrows) {
+			if (y == config.screenrows / 3) {
+				char welcome[80];
+				int welcomelen = snprintf(welcome, sizeof(welcome),
+					"Kilo editor -- version %s", KILO_VERSION);
+				if (welcomelen > config.screencols) welcomelen = config.screencols;
+				int padding = (config.screencols - welcomelen) / 2;
+				if (padding) {
+					appendToBuffer(ab, "~", 1);
+					padding--;
+				}
+				while (padding --) appendToBuffer(ab, " ", 1);
+				appendToBuffer(ab, welcome, welcomelen);
+			} else {
 				appendToBuffer(ab, "~", 1);
-				padding--;
 			}
-			while (padding --) appendToBuffer(ab, " ", 1);
-			appendToBuffer(ab, welcome, welcomelen);
+		// else print rows of text
 		} else {
-			appendToBuffer(ab, "~", 1);
+			int len = config.row.size;
+			if (len > config.screencols) len = config.screencols;
+			appendToBuffer(ab, config.row.chars, len);
 		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
@@ -307,6 +339,7 @@ void editorProcessKeypress() {
 void initEditor() {
 	config.cx = 0;
 	config.cy = 0;
+	config.numrows = 0;
 
 	if (getWindowSize(&config.screenrows, &config.screencols) == -1) 
 		die("getWindowSize");
@@ -314,6 +347,7 @@ void initEditor() {
 int main() {
 	enableRawMode();
 	initEditor();
+	editorOpen();
 
 	// runtime loop
 	while(1) {
