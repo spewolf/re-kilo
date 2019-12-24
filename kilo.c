@@ -1,5 +1,10 @@
 /*** includes ***/
+
+// Provides access to lower level functions
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
 #define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -185,6 +190,7 @@ void editorOpen(char* filename) {
 	size_t linecap = 0;
 	ssize_t linelen;
 	linelen = getline(&line, &linecap, fp);
+	// add lines from file to rows
 	if (linelen != -1) {
 		while (linelen > 0 && (line[linelen - 1] == '\n' ||
 							line[linelen - 1] == '\r'))
