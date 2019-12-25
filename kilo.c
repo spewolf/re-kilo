@@ -333,10 +333,16 @@ void editorMoveCursor(int key) {
 	switch (key) {
 		case ARROW_LEFT: 
 			if (config.cx != 0) config.cx--;
+			else if (config.cy > 0) {
+				config.cy--;
+				config.cx = config.row[config.cy].size;
+			}
 			break;
 		case ARROW_RIGHT:
-			if (row && config.cx < row->size) {
-				config.cx++;
+			if (row && config.cx < row->size) config.cx++;
+			else if (row && config.cx == row->size) {
+				config.cy++;
+				config.cx = 0;
 			}
 			break;
 		case ARROW_UP:
@@ -348,7 +354,7 @@ void editorMoveCursor(int key) {
 	}
 
 	row = (config.cy >= config.numrows) ? NULL : &config.row[config.cy];
-	int rowlen = row ? row->size: 0;
+	int rowlen = row ? row->size : 0;
 	if (config.cx > rowlen) {
 		config.cx = rowlen;
 	}
