@@ -43,6 +43,7 @@ typedef struct erow {
 
 struct editorConfig {
 	int cx, cy;
+	int rowoff;
 	struct termios orig_termios;
 	int screenrows;
 	int screencols;
@@ -244,13 +245,22 @@ void freeAppendBuffer(struct appendbuf *ab) {
 
 /*** output ***/
 
+void editorScroll() {
+	if (config.cy < config.rowoff) {
+		config.rowoff = config.cy;
+	}
+	if (config.cy >= config.rowoff + config.screenrows) {
+		config.rowoff = config.cy - config.screenrows + 1;
+	}
+}
+
 void editorDrawRows(struct appendbuf *ab) {
 	int y;
 	// draw 24 tildes
 	for (y = 0; y < config.screenrows; y++) {
-
+		int filerow = y + config.rowoff;
 		// draw version screen and tildes below text
-		if(y >= config.numrows) {
+		if(filerow >= config.numrows) {
 			if (config.numrows == 0 && y == config.screenrows / 3) {
 				char welcome[80];
 				int welcomelen = snprintf(welcome, sizeof(welcome),
@@ -268,9 +278,9 @@ void editorDrawRows(struct appendbuf *ab) {
 			}
 		// else print rows of text
 		} else {
-			int len = config.row[y].size;
+			int len = config.row[filerow].size;
 			if (len > config.screencols) len = config.screencols;
-			appendToBuffer(ab, config.row[y].chars, len);
+			appendToBuffer(ab, config.row[filerow].chars, len);
 		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
@@ -281,6 +291,8 @@ void editorDrawRows(struct appendbuf *ab) {
 }
 
 void editorRefreshScreen() {
+	editorScroll();
+
 	struct appendbuf ab = ABUF_INIT;
 
 	// hide cursor and move cursor top left
@@ -292,7 +304,8 @@ void editorRefreshScreen() {
 	
 	// move cursor to current position
 	char buf[32];
-	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", config.cy + 1, config.cx + 1);
+	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", 
+	         (config.cy - config.rowoff) + 1, config.cx + 1);
 	appendToBuffer(&ab, buf, strlen(buf));
 
 	// show cursor
@@ -317,7 +330,7 @@ void editorMoveCursor(int key) {
 			if (config.cy != 0) config.cy--;
 			break;
 		case ARROW_DOWN:
-			if (config.cy != config.screencols - 1) config.cy++;
+			if (config.cy < config.numrows) config.cy++;
 			break;
 	}
 }
@@ -366,6 +379,7 @@ void editorProcessKeypress() {
 void initEditor() {
 	config.cx = 0;
 	config.cy = 0;
+	config.rowoff = 0;
 	config.numrows = 0;
 	config.row = NULL;
 
