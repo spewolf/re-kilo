@@ -44,6 +44,7 @@ typedef struct erow {
 struct editorConfig {
 	int cx, cy;
 	int rowoff;
+	int coloff;
 	struct termios orig_termios;
 	int screenrows;
 	int screencols;
@@ -252,6 +253,12 @@ void editorScroll() {
 	if (config.cy >= config.rowoff + config.screenrows) {
 		config.rowoff = config.cy - config.screenrows + 1;
 	}
+	if (config.cx < config.coloff) {
+		config.coloff = config.cx;
+	}
+	if (config.cx >= config.coloff + config.screencols) {
+		config.coloff = config.cx - config.screencols + 1;
+	}
 }
 
 void editorDrawRows(struct appendbuf *ab) {
@@ -278,13 +285,14 @@ void editorDrawRows(struct appendbuf *ab) {
 			}
 		// else print rows of text
 		} else {
-			int len = config.row[filerow].size;
+			int len = config.row[filerow].size - config.coloff;
+			if (len < 0) len = 0;
 			if (len > config.screencols) len = config.screencols;
-			appendToBuffer(ab, config.row[filerow].chars, len);
+			appendToBuffer(ab, &config.row[filerow].chars[config.coloff], len);
 		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
-		if (y < config.screenrows -1) {
+		if (y < config.screenrows - 1) {
 			appendToBuffer(ab, "\r\n", 2);
 		}	
 	}
@@ -305,7 +313,8 @@ void editorRefreshScreen() {
 	// move cursor to current position
 	char buf[32];
 	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", 
-	         (config.cy - config.rowoff) + 1, config.cx + 1);
+	         (config.cy - config.rowoff) + 1,
+			 (config.cx - config.coloff) + 1);
 	appendToBuffer(&ab, buf, strlen(buf));
 
 	// show cursor
@@ -319,12 +328,16 @@ void editorRefreshScreen() {
 /*** input ***/
 
 void editorMoveCursor(int key) {
+	erow *row = (config.cy >= config.numrows) ? NULL : &config.row[config.cy];
+
 	switch (key) {
 		case ARROW_LEFT: 
 			if (config.cx != 0) config.cx--;
 			break;
 		case ARROW_RIGHT:
-			if (config.cx != config.screencols - 1) config.cx++;
+			if (row && config.cx < row->size) {
+				config.cx++;
+			}
 			break;
 		case ARROW_UP:
 			if (config.cy != 0) config.cy--;
@@ -332,6 +345,12 @@ void editorMoveCursor(int key) {
 		case ARROW_DOWN:
 			if (config.cy < config.numrows) config.cy++;
 			break;
+	}
+
+	row = (config.cy >= config.numrows) ? NULL : &config.row[config.cy];
+	int rowlen = row ? row->size: 0;
+	if (config.cx > rowlen) {
+		config.cx = rowlen;
 	}
 }
 
@@ -380,6 +399,7 @@ void initEditor() {
 	config.cx = 0;
 	config.cy = 0;
 	config.rowoff = 0;
+	config.coloff = 0;
 	config.numrows = 0;
 	config.row = NULL;
 
