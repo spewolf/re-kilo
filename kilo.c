@@ -47,7 +47,7 @@ struct editorConfig {
 	int screenrows;
 	int screencols;
 	int numrows;
-	erow row;
+	erow *row;
 };
 
 struct editorConfig config;
@@ -180,6 +180,19 @@ int getWindowSize(int *rows, int *cols) {
 	}
 }
 
+/*** row operations ***/
+
+void editorAppendRow(char *s, size_t len) {
+	config.row = realloc(config.row, sizeof(erow) * (config.numrows + 1));
+
+	int at = config.numrows;
+	config.row[at].size = len;
+	config.row[at].chars = malloc(len + 1);
+	memcpy(config.row[at].chars, s, len);
+	config.row[at].chars[len] = '\0';
+	config.numrows++;
+}
+
 /*** file I/O ***/
 
 void editorOpen(char* filename) {
@@ -191,15 +204,11 @@ void editorOpen(char* filename) {
 	ssize_t linelen;
 	linelen = getline(&line, &linecap, fp);
 	// add lines from file to rows
-	if (linelen != -1) {
+	while ((linelen = getline(&line, &linecap, fp)) != -1) {
 		while (linelen > 0 && (line[linelen - 1] == '\n' ||
 							line[linelen - 1] == '\r'))
 			linelen--;
-		config.row.size = linelen;
-		config.row.chars = malloc(linelen + 1);
-		memcpy(config.row.chars, line, linelen);
-		config.row.chars[linelen] = '\0';
-		config.numrows = 1;
+		editorAppendRow(line, linelen);
 	}
 	free(line);
 	fclose(fp);
@@ -242,7 +251,7 @@ void editorDrawRows(struct appendbuf *ab) {
 
 		// draw version screen and tildes below text
 		if(y >= config.numrows) {
-			if (y == config.screenrows / 3) {
+			if (config.numrows == 0 && y == config.screenrows / 3) {
 				char welcome[80];
 				int welcomelen = snprintf(welcome, sizeof(welcome),
 					"Kilo editor -- version %s", KILO_VERSION);
@@ -259,9 +268,9 @@ void editorDrawRows(struct appendbuf *ab) {
 			}
 		// else print rows of text
 		} else {
-			int len = config.row.size;
+			int len = config.row[y].size;
 			if (len > config.screencols) len = config.screencols;
-			appendToBuffer(ab, config.row.chars, len);
+			appendToBuffer(ab, config.row[y].chars, len);
 		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
@@ -358,6 +367,7 @@ void initEditor() {
 	config.cx = 0;
 	config.cy = 0;
 	config.numrows = 0;
+	config.row = NULL;
 
 	if (getWindowSize(&config.screenrows, &config.screencols) == -1) 
 		die("getWindowSize");
