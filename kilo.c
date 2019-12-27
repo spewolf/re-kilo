@@ -45,6 +45,7 @@ typedef struct erow {
 
 struct editorConfig {
 	int cx, cy;
+	int rx;
 	int rowoff;
 	int coloff;
 	struct termios orig_termios;
@@ -186,6 +187,17 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** row operations ***/
 
+int editorRowCxToRx(erow *row, int cx) {
+	int rx = 0;
+	int j;
+	for (j = 0; j < cx; j++) {
+		if (row->chars[j] == '\t')
+			rx += (TAB_STOP - 1) - (rx % TAB_STOP);
+		rx++;
+	}
+	return rx;
+}
+
 void editorUpdateRow(erow *row) {
 	int tabs = 0;
 	int j;
@@ -276,17 +288,22 @@ void freeAppendBuffer(struct appendbuf *ab) {
 /*** output ***/
 
 void editorScroll() {
+	config.rx = 0;
+	if (config.cy < config.numrows) {
+		config.rx = editorRowCxToRx(&config.row[config.cy], config.cx);
+	}
+
 	if (config.cy < config.rowoff) {
 		config.rowoff = config.cy;
 	}
 	if (config.cy >= config.rowoff + config.screenrows) {
 		config.rowoff = config.cy - config.screenrows + 1;
 	}
-	if (config.cx < config.coloff) {
-		config.coloff = config.cx;
+	if (config.rx < config.coloff) {
+		config.coloff = config.rx;
 	}
-	if (config.cx >= config.coloff + config.screencols) {
-		config.coloff = config.cx - config.screencols + 1;
+	if (config.rx >= config.coloff + config.screencols) {
+		config.coloff = config.rx - config.screencols + 1;
 	}
 }
 
@@ -343,7 +360,7 @@ void editorRefreshScreen() {
 	char buf[32];
 	snprintf(buf, sizeof(buf), "\x1b[%d;%dH", 
 	         (config.cy - config.rowoff) + 1,
-			 (config.cx - config.coloff) + 1);
+			 (config.rx - config.coloff) + 1);
 	appendToBuffer(&ab, buf, strlen(buf));
 
 	// show cursor
@@ -433,6 +450,7 @@ void editorProcessKeypress() {
 void initEditor() {
 	config.cx = 0;
 	config.cy = 0;
+	config.rx = 0;
 	config.rowoff = 0;
 	config.coloff = 0;
 	config.numrows = 0;
