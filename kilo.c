@@ -18,7 +18,7 @@
 /*** defines ***/
 
 #define KILO_VERSION "0.0.0"
-
+#define TAB_STOP 8
 // Masks first 5 bits of character to convert char to C-char
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -38,7 +38,9 @@ enum editorKey {
 
 typedef struct erow {
 	int size;
+	int rsize;
 	char *chars;
+	char *render;
 } erow;
 
 struct editorConfig {
@@ -184,6 +186,28 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** row operations ***/
 
+void editorUpdateRow(erow *row) {
+	int tabs = 0;
+	int j;
+	for(j = 0; j < row->size; j++)
+		if (row->chars[j] == '\t') tabs++;
+
+	free(row->render);
+	row->render = malloc(row->size + tabs * (TAB_STOP - 1) + 1);
+
+	int idx = 0;
+	for(j = 0; j < row->size; j++) {
+		if (row->chars[j] == '\t') {
+			row->render[idx++] = ' ';
+			while (idx % TAB_STOP != 0) row->render[idx++] = ' ';
+		} else {
+			row->render[idx++] = row->chars[j];
+		}
+	}
+	row->render[idx] = '\0';
+	row->rsize = idx;
+}
+
 void editorAppendRow(char *s, size_t len) {
 	config.row = realloc(config.row, sizeof(erow) * (config.numrows + 1));
 
@@ -192,6 +216,11 @@ void editorAppendRow(char *s, size_t len) {
 	config.row[at].chars = malloc(len + 1);
 	memcpy(config.row[at].chars, s, len);
 	config.row[at].chars[len] = '\0';
+
+	config.row[at].rsize = 0;
+	config.row[at].render = NULL;
+	editorUpdateRow(&config.row[at]);
+
 	config.numrows++;
 }
 
@@ -278,17 +307,17 @@ void editorDrawRows(struct appendbuf *ab) {
 					appendToBuffer(ab, "~", 1);
 					padding--;
 				}
-				while (padding --) appendToBuffer(ab, " ", 1);
+				while (padding--) appendToBuffer(ab, " ", 1);
 				appendToBuffer(ab, welcome, welcomelen);
 			} else {
 				appendToBuffer(ab, "~", 1);
 			}
 		// else print rows of text
 		} else {
-			int len = config.row[filerow].size - config.coloff;
+			int len = config.row[filerow].rsize - config.coloff;
 			if (len < 0) len = 0;
 			if (len > config.screencols) len = config.screencols;
-			appendToBuffer(ab, &config.row[filerow].chars[config.coloff], len);
+			appendToBuffer(ab, &config.row[filerow].render[config.coloff], len);
 		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
