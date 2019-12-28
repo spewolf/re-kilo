@@ -337,10 +337,20 @@ void editorDrawRows(struct appendbuf *ab) {
 		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
-		if (y < config.screenrows - 1) {
-			appendToBuffer(ab, "\r\n", 2);
-		}	
+		appendToBuffer(ab, "\r\n", 2);
 	}
+}
+
+void editorDrawStatusBar(struct appendbuf *ab) {
+	// invert colors
+	appendToBuffer(ab, "\x1b[7m", 4);
+	int len = 0;
+	while (len < config.screencols) {
+		appendToBuffer(ab, " ", 1);
+		len++;
+	}
+	// de-invert colors
+	appendToBuffer(ab, "\x1b[m", 3);
 }
 
 void editorRefreshScreen() {
@@ -354,6 +364,7 @@ void editorRefreshScreen() {
 
 	// draw
 	editorDrawRows(&ab);
+	editorDrawStatusBar(&ab);
 	
 	// move cursor to current position
 	char buf[32];
@@ -464,6 +475,9 @@ void initEditor() {
 
 	if (getWindowSize(&config.screenrows, &config.screencols) == -1) 
 		die("getWindowSize");
+
+	// decrementing screenrows leaves a row for the status bar
+	config.screenrows -= 1;
 }
 int main(int argc, char *argv[]) {
 	enableRawMode();
