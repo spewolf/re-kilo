@@ -436,6 +436,12 @@ void editorProcessKeypress() {
 		case PAGE_UP:
 		case PAGE_DOWN:
 			{
+				if (c == PAGE_UP) {
+					config.cy = config.rowoff;
+				} else if (c == PAGE_DOWN) {
+					config.cy = config.rowoff + config.screenrows - 1;
+				}
+
 				int times = config.screenrows;
 				while (times--) {
 					editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
