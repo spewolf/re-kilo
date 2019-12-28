@@ -431,7 +431,8 @@ void editorProcessKeypress() {
 			config.cx = 0;
 			break;
 		case END_KEY:
-			config.cx = config.screencols - 1;
+			if (config.cy < config.numrows) 
+				config.cx = config.row[config.cy].size;
 			break;
 		case PAGE_UP:
 		case PAGE_DOWN:
