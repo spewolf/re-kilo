@@ -53,6 +53,7 @@ struct editorConfig {
 	int screencols;
 	int numrows;
 	erow *row;
+	char *filename;
 };
 
 struct editorConfig config;
@@ -239,6 +240,9 @@ void editorAppendRow(char *s, size_t len) {
 /*** file I/O ***/
 
 void editorOpen(char* filename) {
+	free(config.filename);
+	config.filename = strdup(filename);
+
 	FILE *fp = fopen(filename, "r");
 	if (!fp) die("fopen");
 
@@ -344,10 +348,21 @@ void editorDrawRows(struct appendbuf *ab) {
 void editorDrawStatusBar(struct appendbuf *ab) {
 	// invert colors
 	appendToBuffer(ab, "\x1b[7m", 4);
-	int len = 0;
+	char status[80], rstatus[80];
+	int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+		config.filename ? config.filename : "[No Name]", config.numrows);
+	int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+		config.cy + 1, config.numrows);
+	if (len > config.screencols) len = config.screencols;
+	appendToBuffer(ab, status, len);
 	while (len < config.screencols) {
-		appendToBuffer(ab, " ", 1);
-		len++;
+		if (config.screencols - len == rlen) {
+			appendToBuffer(ab, rstatus, rlen);
+			break;
+		} else {
+			appendToBuffer(ab, " ", 1);
+			len++;
+		}
 	}
 	// de-invert colors
 	appendToBuffer(ab, "\x1b[m", 3);
@@ -472,6 +487,7 @@ void initEditor() {
 	config.coloff = 0;
 	config.numrows = 0;
 	config.row = NULL;
+	config.filename = NULL;
 
 	if (getWindowSize(&config.screenrows, &config.screencols) == -1) 
 		die("getWindowSize");
