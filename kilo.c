@@ -8,11 +8,13 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 /*** defines ***/
@@ -52,6 +54,8 @@ struct editorConfig {
 	int screenrows;
 	int screencols;
 	int numrows;
+	char statusmsg[80];
+	time_t statusmsg_time;
 	erow *row;
 	char *filename;
 };
@@ -366,6 +370,16 @@ void editorDrawStatusBar(struct appendbuf *ab) {
 	}
 	// de-invert colors
 	appendToBuffer(ab, "\x1b[m", 3);
+	appendToBuffer(ab, "\r\n" , 2);
+}
+
+void editorDrawMessageBar(struct appendbuf *ab) {
+	appendToBuffer(ab, "\x1b[K", 3);
+	int msglen = strlen(config.statusmsg);
+	if (msglen > config.screencols) msglen = config.screencols;
+	// show message for 5 seconds
+	if (msglen && time(NULL) - config.statusmsg_time < 5)
+		appendToBuffer(ab, config.statusmsg, msglen);
 }
 
 void editorRefreshScreen() {
@@ -380,6 +394,7 @@ void editorRefreshScreen() {
 	// draw
 	editorDrawRows(&ab);
 	editorDrawStatusBar(&ab);
+	editorDrawMessageBar(&ab);
 	
 	// move cursor to current position
 	char buf[32];
@@ -394,6 +409,15 @@ void editorRefreshScreen() {
 	// write and erase buffer
 	write(STDOUT_FILENO, ab.b, ab.len);
 	freeAppendBuffer(&ab);
+}
+
+void editorSetMessage(const char *fmt, ...) {
+	// v stands for variadic function (multiple arguments)
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(config.statusmsg, sizeof(config.statusmsg), fmt, ap);
+	va_end(ap);
+	config.statusmsg_time = time(NULL);
 }
 
 /*** input ***/
@@ -488,19 +512,24 @@ void initEditor() {
 	config.numrows = 0;
 	config.row = NULL;
 	config.filename = NULL;
+	config.statusmsg[0] = '\0';
+	config.statusmsg_time = 0;
 
 	if (getWindowSize(&config.screenrows, &config.screencols) == -1) 
 		die("getWindowSize");
 
 	// decrementing screenrows leaves a row for the status bar
-	config.screenrows -= 1;
+	config.screenrows -= 2;
 }
+
 int main(int argc, char *argv[]) {
 	enableRawMode();
 	initEditor();
 	if (argc >= 2) {
 		editorOpen(argv[1]);
 	}
+
+	editorSetMessage("HELP: Ctrl-Q = quit");
 
 	// runtime loop
 	while(1) {
