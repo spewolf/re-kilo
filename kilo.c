@@ -341,7 +341,17 @@ void editorDrawRows(struct appendbuf *ab) {
 			int len = config.row[filerow].rsize - config.coloff;
 			if (len < 0) len = 0;
 			if (len > config.screencols) len = config.screencols;
-			appendToBuffer(ab, &config.row[filerow].render[config.coloff], len);
+			char *c = &config.row[filerow].render[config.coloff];
+			int j;
+			for (j = 0; j < len; j++) {
+				if (isdigit(c[j])) {
+					appendToBuffer(ab, "\x1b[31m", 5);
+					appendToBuffer(ab, &c[j], 1);
+					appendToBuffer(ab, "\x1b[39m", 5);
+				} else {
+					appendToBuffer(ab, &c[j], 1);
+				}
+			}
 		}
 
 		appendToBuffer(ab, "\x1b[K", 3);
