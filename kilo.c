@@ -241,6 +241,25 @@ void editorAppendRow(char *s, size_t len) {
 	config.numrows++;
 }
 
+void editorRowInsertChar(erow *row, int at, int c) {
+	if (at < 0 || at > row->size) at = row->size;
+	row->chars = realloc(row->chars, row->size * 2);
+	memmove(&row->chars[at + 1], &row->chars[at], row->size -at + 1);
+	row->size++;
+	row->chars[at] = c;
+	editorUpdateRow(row);
+}
+
+/*** editor operations ***/
+
+void editorInsertChar(int c) {
+	if (config.cy == config.numrows) {
+		editorAppendRow("", 0);
+	}
+	editorRowInsertChar(&config.row[config.cy], config.cx, c);
+	config.cx++;
+}
+
 /*** file I/O ***/
 
 void editorOpen(char* filename) {
@@ -507,6 +526,9 @@ void editorProcessKeypress() {
 					editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
 				}
 			}
+			break;
+		default:
+			editorInsertChar(c);
 			break;
 	}
 }
