@@ -234,36 +234,69 @@ void editorUpdateRow(erow *row) {
 }
 
 void editorAppendRow(char *s, size_t len) {
+	// Allocate erow and char memory
 	config.row = realloc(config.row, sizeof(erow) * (config.numrows + 1));
-
 	int at = config.numrows;
 	config.row[at].size = len;
 	config.row[at].chars = malloc(len + 1);
+	// Insert data
 	memcpy(config.row[at].chars, s, len);
 	config.row[at].chars[len] = '\0';
-
+	// Initialize render memory
 	config.row[at].rsize = 0;
 	config.row[at].render = NULL;
+	// Update editor
 	editorUpdateRow(&config.row[at]);
-
 	config.numrows++;
+	config.dirty++;
+}
+
+void editorFreeRow(erow *row) {
+	free(row->render);
+	free(row->chars);
+}
+
+void editorDelRow(int at) {
+	if (at < 0 || at >- config.numrows) return;
+	// free memory
+	editorFreeRow(&config.row[at]);
+	// shift right side of array to the left by one
+	memmove(&config.row[at], &config.row[at + 1], sizeof(erow) * (config.numrows - at - 1));
+	// update editor
+	config.numrows--;
 	config.dirty++;
 }
 
 void editorRowInsertChar(erow *row, int at, int c) {
 	if (at < 0 || at > row->size) at = row->size;
+	// shift right side of row one to the right
 	row->chars = realloc(row->chars, row->size * 2);
 	memmove(&row->chars[at + 1], &row->chars[at], row->size -at + 1);
 	row->size++;
+	// insert character
 	row->chars[at] = c;
+	editorUpdateRow(row);
+	config.dirty++;
+}
+
+void editorRowAppendString(erow *row, char *s, size_t len) {
+	// resize row
+	row->chars = realloc(row->chars, row->size + len + 1);
+	// append char* to row
+	memcpy(&row->chars[row->size], s, len);
+	row->size += len;
+	row->chars[row->size] = '\0';
+	// update editor
 	editorUpdateRow(row);
 	config.dirty++;
 }
 
 void editorRowDelChar(erow *row, int at) {
 	if (at < 0 || at >= row->size) return;
+	// move right side of row to the left
 	memmove(&row->chars[at], &row->chars [at + 1], row->size - at);
 	row->size--;
+	// update editor
 	editorUpdateRow(row);
 	config.dirty++;
 }
@@ -280,11 +313,19 @@ void editorInsertChar(int c) {
 
 void editorDelChar() {
 	if (config.cy == config.numrows) return;
+	if (config.cx == 0 && config.cy == 0) return;
 
 	erow *row = &config.row[config.cy];
 	if (config.cx > 0) {
+		// delete previous char
 		editorRowDelChar(row, config.cx - 1);
 		config.cx--;
+	} else {
+		// delete newline
+		config.cx = config.row[config.cy + 1].size;
+		editorRowAppendString(&config.row[config.cy - 1], row->chars, row->size);
+		editorDelRow(config.cy);
+		config.cy--;
 	}
 }
 
