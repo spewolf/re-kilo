@@ -60,6 +60,7 @@ struct editorConfig {
 	time_t statusmsg_time;
 	erow *row;
 	char *filename;
+	int dirty;
 };
 
 struct editorConfig config;
@@ -245,6 +246,7 @@ void editorAppendRow(char *s, size_t len) {
 	editorUpdateRow(&config.row[at]);
 
 	config.numrows++;
+	config.dirty++;
 }
 
 void editorRowInsertChar(erow *row, int at, int c) {
@@ -254,6 +256,7 @@ void editorRowInsertChar(erow *row, int at, int c) {
 	row->size++;
 	row->chars[at] = c;
 	editorUpdateRow(row);
+	config.dirty++;
 }
 
 /*** editor operations ***/
@@ -306,6 +309,7 @@ void editorOpen(char* filename) {
 	}
 	free(line);
 	fclose(fp);
+	config.dirty = 0;
 }
 
 void editorSave() {
@@ -320,6 +324,7 @@ void editorSave() {
 			if (write(fd, buf, len) == len) {
 				close(fd);
 				free(buf);
+				config.dirty = 0;
 				editorSetMessage("%d bytes written to disk", len);
 				return;
 			}
@@ -430,8 +435,9 @@ void editorDrawStatusBar(struct appendbuf *ab) {
 	// invert colors
 	appendToBuffer(ab, "\x1b[7m", 4);
 	char status[80], rstatus[80];
-	int len = snprintf(status, sizeof(status), "%.20s - %d lines",
-		config.filename ? config.filename : "[No Name]", config.numrows);
+	int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
+		config.filename ? config.filename : "[No Name]", config.numrows,
+		config.dirty ? "(modified)" : "");
 	int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
 		config.cy + 1, config.numrows);
 	if (len > config.screencols) len = config.screencols;
@@ -606,6 +612,7 @@ void initEditor() {
 	config.coloff = 0;
 	config.numrows = 0;
 	config.row = NULL;
+	config.dirty = 0;
 	config.filename = NULL;
 	config.statusmsg[0] = '\0';
 	config.statusmsg_time = 0;
