@@ -64,6 +64,10 @@ struct editorConfig {
 
 struct editorConfig config;
 
+/*** prototypes ***/
+
+void editorSetMessage(const char *fmt, ...);
+
 /*** terminal ***/
 
 // perror will print given string and then detailed discription of error based on global errno
@@ -311,10 +315,20 @@ void editorSave() {
 	char *buf = editorRowsToString(&len);
 
 	int fd = open(config.filename, O_RDWR | O_CREAT, 0644);
-	ftruncate(fd, len);
-	write(fd, buf, len);
-	close(fd);
+	if (fd != -1) {
+		if (ftruncate(fd, len) != -1) {
+			if (write(fd, buf, len) == len) {
+				close(fd);
+				free(buf);
+				editorSetMessage("%d bytes written to disk", len);
+				return;
+			}
+		}
+		close(fd);
+	}
+
 	free(buf);
+	editorSetMessage("Can't save! I/O error: %s", strerror(errno));
 }
 
 /*** append ***/
@@ -610,7 +624,7 @@ int main(int argc, char *argv[]) {
 		editorOpen(argv[1]);
 	}
 
-	editorSetMessage("HELP: Ctrl-Q = quit");
+	editorSetMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
 	// runtime loop
 	while(1) {
