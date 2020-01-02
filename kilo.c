@@ -217,9 +217,11 @@ void editorUpdateRow(erow *row) {
 	for(j = 0; j < row->size; j++)
 		if (row->chars[j] == '\t') tabs++;
 
+	// Update render row
 	free(row->render);
 	row->render = malloc(row->size + tabs * (TAB_STOP - 1) + 1);
 
+	// Convert tabs to spaces for rendering
 	int idx = 0;
 	for(j = 0; j < row->size; j++) {
 		if (row->chars[j] == '\t') {
@@ -259,7 +261,7 @@ void editorFreeRow(erow *row) {
 }
 
 void editorDelRow(int at) {
-	if (at < 0 || at >- config.numrows) return;
+	if (at < 0 || at >= config.numrows) return;
 	// free memory
 	editorFreeRow(&config.row[at]);
 	// shift right side of array to the left by one
@@ -272,7 +274,7 @@ void editorDelRow(int at) {
 void editorRowInsertChar(erow *row, int at, int c) {
 	if (at < 0 || at > row->size) at = row->size;
 	// shift right side of row one to the right
-	row->chars = realloc(row->chars, row->size * 2);
+	row->chars = realloc(row->chars, row->size + 2);
 	memmove(&row->chars[at + 1], &row->chars[at], row->size -at + 1);
 	row->size++;
 	// insert character
@@ -296,7 +298,7 @@ void editorRowAppendString(erow *row, char *s, size_t len) {
 void editorRowDelChar(erow *row, int at) {
 	if (at < 0 || at >= row->size) return;
 	// move right side of row to the left
-	memmove(&row->chars[at], &row->chars [at + 1], row->size - at);
+	memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
 	row->size--;
 	// update editor
 	editorUpdateRow(row);
@@ -339,7 +341,7 @@ void editorDelChar() {
 		config.cx--;
 	} else {
 		// delete newline
-		config.cx = config.row[config.cy + 1].size;
+		config.cx = config.row[config.cy - 1].size;
 		editorRowAppendString(&config.row[config.cy - 1], row->chars, row->size);
 		editorDelRow(config.cy);
 		config.cy--;
