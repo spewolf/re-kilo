@@ -536,7 +536,7 @@ void editorProcessKeypress() {
 				}
 			}
 			break;
-		case CTRL_KEY('l');
+		case CTRL_KEY('l'):
 		case '\x1b':
 			break;
 
