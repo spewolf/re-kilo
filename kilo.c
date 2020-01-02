@@ -22,6 +22,7 @@
 
 #define KILO_VERSION "0.0.0"
 #define TAB_STOP 8
+#define KILO_QUIT_TIMES 3
 // Masks first 5 bits of character to convert char to C-char
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -539,6 +540,8 @@ void editorMoveCursor(int key) {
 }
 
 void editorProcessKeypress() {
+	static int quit_times = KILO_QUIT_TIMES;
+
 	int c = editorReadKey();
 
 	switch (c) {
@@ -547,6 +550,12 @@ void editorProcessKeypress() {
 			break;
 		// Exit key
 		case CTRL_KEY('q'):
+			if (config.dirty && quit_times > 0) {
+				editorSetMessage("WARNING! File has unsaved changes. "
+					"Press CTRL-Q %d more times to quit.", quit_times);
+				quit_times--;
+				return;
+			}
 			// Clear Screen
 			write(STDOUT_FILENO, "\x1b[2J", 4);
 			write(STDOUT_FILENO, "\x1b[H", 3);
@@ -600,6 +609,8 @@ void editorProcessKeypress() {
 			editorInsertChar(c);
 			break;
 	}
+
+	quit_times = KILO_QUIT_TIMES;
 }
 
 /*** init ***/
