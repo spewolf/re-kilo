@@ -233,10 +233,12 @@ void editorUpdateRow(erow *row) {
 	row->rsize = idx;
 }
 
-void editorAppendRow(char *s, size_t len) {
+void editorInsertRow(int at, char *s, size_t len) {
+	if (at < 0 || at > config.numrows) return;
+
 	// Allocate erow and char memory
 	config.row = realloc(config.row, sizeof(erow) * (config.numrows + 1));
-	int at = config.numrows;
+	memmove(&config.row[at + 1], &config.row[at], sizeof(erow) * (config.numrows - at));
 	config.row[at].size = len;
 	config.row[at].chars = malloc(len + 1);
 	// Insert data
@@ -305,10 +307,25 @@ void editorRowDelChar(erow *row, int at) {
 
 void editorInsertChar(int c) {
 	if (config.cy == config.numrows) {
-		editorAppendRow("", 0);
+		editorInsertRow(config.numrows, "", 0);
 	}
 	editorRowInsertChar(&config.row[config.cy], config.cx, c);
 	config.cx++;
+}
+
+void editorInsertNewLine() {
+	if (config.cx == 0) {
+		editorInsertRow(config.cy, "", 0);
+	} else {
+		erow *row = &config.row[config.cy];
+		editorInsertRow(config.cy + 1, &row->chars[config.cx], row->size - config.cx);
+		row = &config.row[config.cy];
+		row->size = config.cx;
+		row->chars[row->size] = '\0';
+		editorUpdateRow(row);
+	}
+	config.cy++;
+	config.cx = 0;
 }
 
 void editorDelChar() {
@@ -365,7 +382,7 @@ void editorOpen(char* filename) {
 		while (linelen > 0 && (line[linelen - 1] == '\n' ||
 							line[linelen - 1] == '\r'))
 			linelen--;
-		editorAppendRow(line, linelen);
+		editorInsertRow(config.numrows, line, linelen);
 	}
 	free(line);
 	fclose(fp);
@@ -605,7 +622,7 @@ void editorProcessKeypress() {
 
 	switch (c) {
 		case '\r':
-			/* TODO */
+			editorInsertNewLine();
 			break;
 		// Exit key
 		case CTRL_KEY('q'):
