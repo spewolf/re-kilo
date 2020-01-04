@@ -69,6 +69,8 @@ struct editorConfig config;
 /*** prototypes ***/
 
 void editorSetMessage(const char *fmt, ...);
+void editorRefreshScreen();
+char *editorPrompt(char *prompt);
 
 /*** terminal ***/
 
@@ -392,7 +394,8 @@ void editorOpen(char* filename) {
 }
 
 void editorSave() {
-	if (config.filename == NULL) return;
+	if (config.filename == NULL)
+		config.filename = editorPrompt("Save as: %s");
 
 	int len;
 	char *buf = editorRowsToString(&len);
@@ -584,6 +587,33 @@ void editorSetMessage(const char *fmt, ...) {
 
 /*** input ***/
 
+char *editorPrompt(char *prompt) {
+	size_t bufsize = 128;
+	char *buf = malloc(bufsize);
+
+	size_t buflen = 0;
+	buf[0] = '\0';
+
+	while (1) {
+		editorSetMessage(prompt, buf);
+		editorRefreshScreen();
+
+		int c = editorReadKey();
+		if (c == '\r') {
+			if (buflen != 0) {
+				editorSetMessage("");
+				return buf;
+			}
+		} else if (!iscntrl(c) && c < 128) {
+			if (buflen == bufsize - 1) {
+				bufsize *= 2;
+				buf = realloc(buf, bufsize);
+			}
+			buf[buflen++] = c;
+			buf[buflen] = '\0';
+		}
+	}
+}
 void editorMoveCursor(int key) {
 	erow *row = (config.cy >= config.numrows) ? NULL : &config.row[config.cy];
 
