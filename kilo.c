@@ -394,8 +394,13 @@ void editorOpen(char* filename) {
 }
 
 void editorSave() {
-	if (config.filename == NULL)
+	if (config.filename == NULL) {
 		config.filename = editorPrompt("Save as: %s");
+		if (config.filename == NULL) {
+			editorSetMessage("Save aborted");
+			return;
+		}
+	}
 
 	int len;
 	char *buf = editorRowsToString(&len);
@@ -599,7 +604,11 @@ char *editorPrompt(char *prompt) {
 		editorRefreshScreen();
 
 		int c = editorReadKey();
-		if (c == '\r') {
+		if (c == '\x1b') {
+			editorSetMessage("");
+			free(buf);
+			return NULL;
+		} else if (c == '\r') {
 			if (buflen != 0) {
 				editorSetMessage("");
 				return buf;
