@@ -395,7 +395,7 @@ void editorOpen(char* filename) {
 
 void editorSave() {
 	if (config.filename == NULL) {
-		config.filename = editorPrompt("Save as: %s");
+		config.filename = editorPrompt("Save as: %s_");
 		if (config.filename == NULL) {
 			editorSetMessage("Save aborted");
 			return;
@@ -604,7 +604,9 @@ char *editorPrompt(char *prompt) {
 		editorRefreshScreen();
 
 		int c = editorReadKey();
-		if (c == '\x1b') {
+		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+			if (buflen != 0) buf[--buflen] = '\0';
+		} else if (c == '\x1b') {
 			editorSetMessage("");
 			free(buf);
 			return NULL;
