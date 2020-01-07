@@ -213,6 +213,19 @@ int editorRowCxToRx(erow *row, int cx) {
 	return rx;
 }
 
+int editorRowRxToCx(erow *row, int rx) {
+	int cur_rx = 0;
+	int cx;
+	for (cx = 0; cx < row->size; cx++) {
+		if (row->chars[cx] == '\t')
+			cur_rx += (TAB_STOP - 1) - (cur_rx % TAB_STOP);
+		cur_rx++;
+
+		if (cur_rx > rx) return cx;
+	}
+	return cx;
+}
+
 void editorUpdateRow(erow *row) {
 	int tabs = 0;
 	int j;
@@ -421,6 +434,29 @@ void editorSave() {
 
 	free(buf);
 	editorSetMessage("Can't save! I/O error: %s", strerror(errno));
+}
+
+/*** find ***/
+
+void editorFind() {
+	// prompt user for search term
+	char *query = editorPrompt("Search: %s_ (ESC to cancel)");
+	if (query == NULL) return;
+
+	// search rows for term
+	int i;
+	for (i = 0; i < config.numrows; i++) {
+		erow *row = &config.row[i];
+		char *match = strstr(row->render, query);
+		if (match) {
+			config.cy = i;
+			config.cx = editorRowRxToCx(row, match - row->render);
+			config.rowoff = config.numrows;
+			break;
+		}
+	}
+
+	free(query);
 }
 
 /*** append ***/
@@ -700,6 +736,9 @@ void editorProcessKeypress() {
 			if (config.cy < config.numrows) 
 				config.cx = config.row[config.cy].size;
 			break;
+		case CTRL_KEY('f'):
+			editorFind();
+			break;
 		case BACKSPACE:
 		case CTRL_KEY('h'):
 		case DEL_KEY:
@@ -762,7 +801,7 @@ int main(int argc, char *argv[]) {
 		editorOpen(argv[1]);
 	}
 
-	editorSetMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
+	editorSetMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
 	// runtime loop
 	while(1) {
