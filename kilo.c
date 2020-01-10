@@ -607,19 +607,27 @@ void editorDrawRows(struct appendbuf *ab) {
 			if (len > config.screencols) len = config.screencols;
 			char *c = &config.row[filerow].render[config.coloff];
 			unsigned char *hl = &config.row[filerow].hl[config.coloff];
+			int current_color = -1;
 			int j;
 			for (j = 0; j < len; j++) {
 				if (hl[j] == HL_NORMAL) {
-					appendToBuffer(ab, "\x1b[39m", 5);
+					if (current_color != -1) {
+						appendToBuffer(ab, "\x1b[39m", 5);
+						current_color = -1;
+					}
 					appendToBuffer(ab, &c[j], 1);
 				} else {
 					int color = editorSyntaxToColor(hl[j]);
-					char buf[16];
-					int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
-					appendToBuffer(ab, buf, clen);
+					if (color != current_color) {
+						current_color = color;
+						char buf[16];
+						int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+						appendToBuffer(ab, buf, clen);
+					}
 					appendToBuffer(ab, &c[j], 1);
 				}
 			}
+			// NOTE: 39m is default text
 			appendToBuffer(ab, "\x1b[39m", 5);
 		}
 
