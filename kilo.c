@@ -45,7 +45,15 @@ enum editorHighlight {
 	HL_MATCH
 };
 
+#define HL_HIGHLIGHT_NUMBERS (1<<0)
+
 /*** data ***/
+
+struct editorSyntax {
+	char *filetype;
+	char **filematch;
+	int flags;
+};
 
 typedef struct erow {
 	int size;
@@ -69,9 +77,24 @@ struct editorConfig {
 	erow *row;
 	char *filename;
 	int dirty;
+	struct editorSyntax *syntax;
 };
 
 struct editorConfig config;
+
+/*** filetypes ***/
+
+char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL };
+
+struct editorSyntax HLDB[] = {
+	{
+		"c",
+		C_HL_extensions,
+		HL_HIGHLIGHT_NUMBERS
+	},
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** prototypes ***/
 
@@ -217,6 +240,8 @@ void editorUpdateSyntax(erow *row) {
 	row->hl = realloc(row->hl, row->rsize);
 	memset(row->hl, HL_NORMAL, row->rsize);
 
+	if (config.syntax == NULL) return;
+
 	int prev_sep = 1;
 
 	int i = 0;
@@ -224,12 +249,14 @@ void editorUpdateSyntax(erow *row) {
 		char c = row->render[i];
 		unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
 		
-		if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
-		                   (c == '.' && prev_hl == HL_NUMBER)) {
-			row->hl[i] = HL_NUMBER;
-			i++;
-			prev_sep = 0;
-			continue;
+		if (config.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+			if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
+							   (c == '.' && prev_hl == HL_NUMBER)) {
+				row->hl[i] = HL_NUMBER;
+				i++;
+				prev_sep = 0;
+				continue;
+			}
 		}
 
 		prev_sep = is_seperator(c);
@@ -245,6 +272,33 @@ int editorSyntaxToColor(int hl) {
 		case HL_MATCH: return 34;
 		// ANSI foreground white
 		default: return 37;
+	}
+}
+
+void editorSelectSyntaxHighlight() {
+	config.syntax = NULL;
+	if (config.filename == NULL) return;
+
+	char *ext = strrchr(config.filename, '.');
+
+	for (unsigned int j = 0; j < HLDB_ENTRIES; j++) {
+		struct editorSyntax *s = &HLDB[j];
+		unsigned int i = 0;
+		while (s->filematch[i]) {
+			int is_ext = (s->filematch[i][0] == '.');
+			if ((is_ext && ext && !strcmp(ext, s->filematch[i])) ||
+			    (!is_ext && strstr(config.filename, s->filematch[i]))) {
+				config.syntax = s;
+
+				int filerow;
+				for (filerow = 0; filerow < config.numrows; filerow++) {
+					editorUpdateSyntax(&config.row[filerow]);
+				}
+
+				return;
+			}
+			i++;
+		}
 	}
 }
 
@@ -440,6 +494,8 @@ void editorOpen(char* filename) {
 	free(config.filename);
 	config.filename = strdup(filename);
 
+	editorSelectSyntaxHighlight();
+
 	FILE *fp = fopen(filename, "r");
 	if (!fp) die("fopen");
 
@@ -465,6 +521,7 @@ void editorSave() {
 			editorSetMessage("Save aborted");
 			return;
 		}
+		editorSelectSyntaxHighlight();
 	}
 
 	int len;
@@ -676,8 +733,8 @@ void editorDrawStatusBar(struct appendbuf *ab) {
 	int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
 		config.filename ? config.filename : "[No Name]", config.numrows,
 		config.dirty ? "(modified)" : "");
-	int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
-		config.cy + 1, config.numrows);
+	int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d",
+		config.syntax ? config.syntax->filetype : "no ft", config.cy + 1, config.numrows);
 	if (len > config.screencols) len = config.screencols;
 	appendToBuffer(ab, status, len);
 	while (len < config.screencols) {
@@ -905,6 +962,7 @@ void initEditor() {
 	config.filename = NULL;
 	config.statusmsg[0] = '\0';
 	config.statusmsg_time = 0;
+	config.syntax = NULL;
 
 	if (getWindowSize(&config.screenrows, &config.screencols) == -1) 
 		die("getWindowSize");
