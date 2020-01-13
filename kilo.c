@@ -771,20 +771,35 @@ void editorDrawRows(struct appendbuf *ab) {
 			}
 		// else print rows of text
 		} else {
+			// get row length and char/hl pointers
 			int len = config.row[filerow].rsize - config.coloff;
 			if (len < 0) len = 0;
 			if (len > config.screencols) len = config.screencols;
 			char *c = &config.row[filerow].render[config.coloff];
 			unsigned char *hl = &config.row[filerow].hl[config.coloff];
 			int current_color = -1;
+			// iterate over bytes in row
 			int j;
 			for (j = 0; j < len; j++) {
-				if (hl[j] == HL_NORMAL) {
+				// translate ctrl characters to readable characters (invert color)
+				if (iscntrl(c[j])) {
+					char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+					appendToBuffer(ab, "\x1b[7m", 4);
+					appendToBuffer(ab, &sym, 1);
+					appendToBuffer(ab, "\x1b[m", 3);
+					if (current_color != -1) {
+						char buf[16];
+						int clen = snprintf(buf, sizeof(buf), "\x1b%dm", current_color);
+						appendToBuffer(ab, buf, clen);
+					}
+				// revert HL when color != -1 and should be HL_NORMAL
+				} else if (hl[j] == HL_NORMAL) {
 					if (current_color != -1) {
 						appendToBuffer(ab, "\x1b[39m", 5);
 						current_color = -1;
 					}
 					appendToBuffer(ab, &c[j], 1);
+				// set color when color != current color
 				} else {
 					int color = editorSyntaxToColor(hl[j]);
 					if (color != current_color) {
