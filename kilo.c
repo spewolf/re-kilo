@@ -20,7 +20,7 @@
 
 /*** defines ***/
 
-#define KILO_VERSION "0.0.0"
+#define KILO_VERSION "1.0"
 #define TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 // Masks first 5 bits of character to convert char to C-char
