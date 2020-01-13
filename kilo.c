@@ -44,6 +44,7 @@ enum editorHighlight {
 	HL_KEYWORD1,
 	HL_KEYWORD2,
 	HL_COMMENT,
+	HL_MLCOMMENT,
 	HL_STRING,
 	HL_NUMBER,
 	HL_MATCH
@@ -59,15 +60,19 @@ struct editorSyntax {
 	char **filematch;
 	char **keywords;
 	char *singleline_comment_start;
+	char *multiline_comment_start;
+	char *multiline_comment_end;
 	int flags;
 };
 
 typedef struct erow {
+	int idx;
 	int size;
 	int rsize;
 	char *chars;
 	char *render;
 	unsigned char *hl;
+	int hl_open_comment;
 } erow;
 
 struct editorConfig {
@@ -104,7 +109,7 @@ struct editorSyntax HLDB[] = {
 		"c",
 		C_HL_extensions,
 		C_HL_keywords,
-		"//",
+		"//", "/*", "*/",
 		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
 	},
 };
@@ -260,23 +265,53 @@ void editorUpdateSyntax(erow *row) {
 	char **keywords = config.syntax->keywords;
 
 	char *scs = config.syntax->singleline_comment_start;
+	char *mcs = config.syntax->multiline_comment_start;
+	char *mce = config.syntax->multiline_comment_end;
+
 	int scs_len = scs ? strlen(scs) : 0;
+	int mcs_len = mcs ? strlen(mcs) : 0;
+	int mce_len = mce ? strlen(mce) : 0;
 
 	int prev_sep = 1;
 	int in_string = 0;
+	int in_comment = (row->idx > 0 && config.row[row->idx -1].hl_open_comment);
 
 	int i = 0;
 	while (i < row->rsize) {
 		char c = row->render[i];
 		unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
 
-		if (scs_len && !in_string) {
+		// Single Line comment Highlighting
+		if (scs_len && !in_string && !in_comment) {
 			if (!strncmp(&row->render[i], scs, scs_len)) {
 				memset(&row->hl[i], HL_COMMENT, row->rsize - i);
 				break;
 			}
 		}
 
+		// Multiline Comment Highlighting
+		if (mcs_len && mce_len && !in_string) {
+			if (in_comment) {
+				row->hl[i] = HL_MLCOMMENT;
+				if (!strncmp(&row->render[i], mce, mce_len)) {
+					memset(&row->hl[i], HL_MLCOMMENT, mce_len);
+					i += mce_len;
+					in_comment = 0;
+					prev_sep = 1;
+					continue;
+				} else {
+					i++;
+					continue;
+				}
+			} else if (!strncmp(&row->render[i], mcs, mcs_len)) {
+				memset(&row->hl[i], HL_MLCOMMENT, mcs_len);
+				i += mcs_len;
+				in_comment = 1;
+				continue;
+			}
+		}
+	
+		// String Highlighting
 		if (config.syntax->flags & HL_HIGHLIGHT_STRINGS) {
 			if (in_string) {
 				row->hl[i] = HL_STRING;
@@ -299,6 +334,7 @@ void editorUpdateSyntax(erow *row) {
 			}
 		}
 		
+		// Number Highlighting
 		if (config.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
 			if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
 							   (c == '.' && prev_hl == HL_NUMBER)) {
@@ -333,11 +369,17 @@ void editorUpdateSyntax(erow *row) {
 		prev_sep = is_seperator(c);
 		i++;
 	}
+
+	int changed = (row->hl_open_comment != in_comment);
+	row->hl_open_comment = in_comment;
+	if (changed && row->idx + 1 < config.numrows)
+		editorUpdateSyntax(&config.row[row->idx + 1]);
 }
 
 int editorSyntaxToColor(int hl) {
 	switch (hl) {
 		// ANSI Cyan
+		case HL_MLCOMMENT:
 		case HL_COMMENT: return 36;
 		// ANSI Yellow
 		case HL_KEYWORD1: return 33;
@@ -439,6 +481,11 @@ void editorInsertRow(int at, char *s, size_t len) {
 	// Allocate erow and char memory
 	config.row = realloc(config.row, sizeof(erow) * (config.numrows + 1));
 	memmove(&config.row[at + 1], &config.row[at], sizeof(erow) * (config.numrows - at));
+	for (int j = at + 1; j <= config.numrows; j++)
+		config.row[j].idx++;
+
+	config.row[at].idx = at;
+
 	config.row[at].size = len;
 	config.row[at].chars = malloc(len + 1);
 	// Insert data
@@ -448,6 +495,7 @@ void editorInsertRow(int at, char *s, size_t len) {
 	config.row[at].rsize = 0;
 	config.row[at].render = NULL;
 	config.row[at].hl = NULL;
+	config.row[at].hl_open_comment = 0;
 	// Update editor
 	editorUpdateRow(&config.row[at]);
 	config.numrows++;
@@ -466,6 +514,8 @@ void editorDelRow(int at) {
 	editorFreeRow(&config.row[at]);
 	// shift right side of array to the left by one
 	memmove(&config.row[at], &config.row[at + 1], sizeof(erow) * (config.numrows - at - 1));
+	for (int j = at; j < config.numrows - 1; j++)
+		config.row[j].idx--;
 	// update editor
 	config.numrows--;
 	config.dirty++;
